@@ -279,5 +279,7 @@ mod tests {
             token_id: TOKEN_ID.into(),
             include_expired: Some(true),
         };
+        let res = cw721_query(deps.as_ref(), mock_env(), owner_of_query).unwrap();
+        // assert_eq!(BOB.into(), res.owner);
     }
 }
