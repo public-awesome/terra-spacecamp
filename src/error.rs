@@ -8,14 +8,24 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
-    // Add any other custom errors you like here.
-    // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+
+    #[error("InvalidBidAmount")]
+    InvalidBidAmount {},
+
+    #[error("Claimed")]
+    Claimed {},
+
+    #[error("Expired")]
+    Expired {},
 }
 
 impl From<cw721_base::ContractError> for ContractError {
     fn from(err: cw721_base::ContractError) -> Self {
         match err {
             cw721_base::ContractError::Std(error) => ContractError::Std(error),
+            cw721_base::ContractError::Unauthorized {} => ContractError::Unauthorized {},
+            cw721_base::ContractError::Claimed {} => ContractError::Claimed {},
+            cw721_base::ContractError::Expired {} => ContractError::Expired {},
         }
     }
 }

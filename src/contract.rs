@@ -1,11 +1,14 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{
+    to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+};
 
 use crate::error::ContractError;
-use crate::msg::ExecuteMsg;
+use crate::msg::{CurrentAskForTokenResponse, ExecuteMsg, MintMsg, QueryMsg};
+use crate::state::{Ask, Bid, TOKEN_ASKS, TOKEN_BIDDERS};
+use cw721_base::contract::{execute_mint as cw721_execute_mint, instantiate as cw721_instantiate};
 use cw721_base::msg::InstantiateMsg;
-use cw721_base::contract::{execute_mint, instantiate as cw721_instantiate};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -14,7 +17,6 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-
     cw721_instantiate(deps, _env, info, msg)
 }
 
@@ -26,89 +28,185 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Mint(msg) => Ok(execute_mint(deps, env, info, msg)?),
+        ExecuteMsg::Mint(msg) => execute_mint(deps, env, info, msg),
+        ExecuteMsg::SetBid {
+            token_id,
+            amount,
+            bidder,
+        } => execute_set_bid(deps, env, info, token_id, amount, bidder),
+        ExecuteMsg::AcceptBid { token_id, bidder } => {
+            execute_accept_bid(deps, env, info, token_id, bidder)
+        }
     }
 }
 
-// #[cfg_attr(not(feature = "library"), entry_point)]
-// pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-//     match msg {
-//         QueryMsg::GetCount {} => to_binary(&query_count(deps)?),
-//     }
-// }
+pub fn execute_mint(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: MintMsg,
+) -> Result<Response, ContractError> {
+    cw721_execute_mint(deps.branch(), env, info, msg.base.clone())?;
 
-// fn query_count(deps: Deps) -> StdResult<CountResponse> {
-//     let state = STATE.load(deps.storage)?;
-//     Ok(CountResponse { count: state.count })
-// }
+    let ask = Ask {
+        amount: msg.ask_amount,
+    };
+    TOKEN_ASKS.save(deps.storage, &msg.base.token_id, &ask)?;
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-//     use cosmwasm_std::{coins, from_binary};
+    Ok(Response::default())
+}
 
-//     #[test]
-//     fn proper_initialization() {
-//         let mut deps = mock_dependencies(&[]);
+pub fn execute_set_bid(
+    deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    token_id: String,
+    amount: Coin,
+    bidder: String,
+) -> Result<Response, ContractError> {
+    let bidder_addr = deps.api.addr_validate(&bidder)?;
+    if amount.amount.is_zero() {
+        return Err(ContractError::InvalidBidAmount {});
+    }
 
-//         let msg = InstantiateMsg { count: 17 };
-//         let info = mock_info("creator", &coins(1000, "earth"));
+    // send funds from bidder to contract
+    let msg = BankMsg::Send {
+        to_address: env.contract.address.into(),
+        amount: vec![amount.clone()],
+    };
 
-//         // we can just call .unwrap() to assert this was a success
-//         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-//         assert_eq!(0, res.messages.len());
+    // save bid
+    let bid = Bid {
+        amount,
+        bidder: bidder_addr.clone(),
+    };
+    TOKEN_BIDDERS.save(deps.storage, (&token_id, &bidder_addr), &bid)?;
 
-//         // it worked, let's query the state
-//         let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-//         let value: CountResponse = from_binary(&res).unwrap();
-//         assert_eq!(17, value.count);
-//     }
+    // check ask
+    let ask = TOKEN_ASKS.load(deps.storage, &token_id)?;
+    if bid.amount.amount > ask.amount.amount {
+        // transfer NFT
+        todo!();
+    }
 
-//     #[test]
-//     fn increment() {
-//         let mut deps = mock_dependencies(&coins(2, "token"));
+    Ok(Response::new()
+        .add_message(msg)
+        .add_attribute("action", "set_bid"))
+}
 
-//         let msg = InstantiateMsg { count: 17 };
-//         let info = mock_info("creator", &coins(2, "token"));
-//         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+pub fn execute_accept_bid(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _token_id: String,
+    _bidder: String,
+) -> Result<Response, ContractError> {
+    Ok(Response::default())
+}
 
-//         // beneficiary can release it
-//         let info = mock_info("anyone", &coins(2, "token"));
-//         let msg = ExecuteMsg::Increment {};
-//         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::CurrentAskForToken { token_id } => {
+            to_binary(&query_current_ask_for_token(deps, token_id)?)
+        }
+    }
+}
 
-//         // should increase counter by 1
-//         let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-//         let value: CountResponse = from_binary(&res).unwrap();
-//         assert_eq!(18, value.count);
-//     }
+fn query_current_ask_for_token(
+    deps: Deps,
+    token_id: String,
+) -> StdResult<CurrentAskForTokenResponse> {
+    let ask = TOKEN_ASKS.load(deps.storage, &token_id).unwrap();
+    Ok(CurrentAskForTokenResponse { ask })
+}
 
-//     #[test]
-//     fn reset() {
-//         let mut deps = mock_dependencies(&coins(2, "token"));
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{coin, Uint128};
+    use cw721_base::msg::MintMsg as Cw721MintMsg;
+    use cw721_base::state::num_tokens;
 
-//         let msg = InstantiateMsg { count: 17 };
-//         let info = mock_info("creator", &coins(2, "token"));
-//         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+    const TOKEN_ID: &str = "123";
+    const MINTER: &str = "minter_address";
 
-//         // beneficiary can release it
-//         let unauth_info = mock_info("anyone", &coins(2, "token"));
-//         let msg = ExecuteMsg::Reset { count: 5 };
-//         let res = execute(deps.as_mut(), mock_env(), unauth_info, msg);
-//         match res {
-//             Err(ContractError::Unauthorized {}) => {}
-//             _ => panic!("Must return unauthorized error"),
-//         }
+    fn setup_contract(deps: DepsMut) {
+        let msg = InstantiateMsg {
+            name: "Cosmic Apes".into(),
+            symbol: "APE".into(),
+            minter: MINTER.into(),
+        };
+        let info = mock_info("creator", &[]);
+        let res = instantiate(deps, mock_env(), info, msg).unwrap();
+        assert_eq!(0, res.messages.len());
+    }
 
-//         // only the original creator can reset the counter
-//         let auth_info = mock_info("creator", &coins(2, "token"));
-//         let msg = ExecuteMsg::Reset { count: 5 };
-//         let _res = execute(deps.as_mut(), mock_env(), auth_info, msg).unwrap();
+    #[test]
+    fn proper_instantiation() {
+        let mut deps = mock_dependencies(&[]);
+        setup_contract(deps.as_mut());
+    }
 
-//         // should now be 5
-//         let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-//         let value: CountResponse = from_binary(&res).unwrap();
-//         assert_eq!(5, value.count);
-//     }
-// }
+    #[test]
+    fn mint() {
+        let mut deps = mock_dependencies(&[]);
+        setup_contract(deps.as_mut());
+
+        let mint_msg = ExecuteMsg::Mint(MintMsg {
+            ask_amount: coin(5, "token"),
+            base: Cw721MintMsg {
+                token_id: TOKEN_ID.into(),
+                owner: "owner".into(),
+                name: "Cosmic Ape 123".into(),
+                description: Some("The first Cosmisc Ape".into()),
+                image: None,
+            },
+        });
+
+        let info = mock_info(MINTER, &[]);
+        let _ = execute(deps.as_mut(), mock_env(), info, mint_msg).unwrap();
+
+        // ensure num tokens increases
+        let count = num_tokens(&deps.storage).unwrap();
+        assert_eq!(1, count);
+
+        // ensure ask is set
+        let res = query_current_ask_for_token(deps.as_ref(), TOKEN_ID.into()).unwrap();
+        assert_eq!(Uint128::from(5u128), res.ask.amount.amount);
+    }
+
+    #[test]
+    fn set_bid() {
+        let mut deps = mock_dependencies(&[]);
+        setup_contract(deps.as_mut());
+
+        let mint_msg = ExecuteMsg::Mint(MintMsg {
+            ask_amount: coin(5, "token"),
+            base: Cw721MintMsg {
+                token_id: TOKEN_ID.into(),
+                owner: "owner".into(),
+                name: "Cosmic Ape 123".into(),
+                description: Some("The first Cosmisc Ape".into()),
+                image: None,
+            },
+        });
+
+        let info = mock_info(MINTER, &[]);
+        let _ = execute(deps.as_mut(), mock_env(), info, mint_msg).unwrap();
+
+        // bob bids 3
+        let bid_msg = ExecuteMsg::SetBid {
+            token_id: TOKEN_ID.into(),
+            amount: coin(3, "token"),
+            bidder: "bidder".into(),
+        };
+        let info = mock_info("creator", &[]);
+        let _ = execute(deps.as_mut(), mock_env(), info, bid_msg).unwrap();
+
+        // ensure bob's bid was created
+
+        // assert_eq!(res, Response::new().add_attribute("action", "set_bid"));
+    }
+}

@@ -2,19 +2,17 @@ use cw_storage_plus::Map;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128};
-
+use cosmwasm_std::{Addr, Coin};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Bid {
-    pub amount: Uint128,
+    pub amount: Coin,
     pub bidder: Addr,
-    pub recipient: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Ask {
-    pub amount: Uint128,
+    pub amount: Coin,
 }
 
 /// mapping from (token, bidder) -> bid

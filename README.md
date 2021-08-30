@@ -2,6 +2,8 @@
 
 ## State
 
+owner
+
 bid
 - amount
 - bidder
