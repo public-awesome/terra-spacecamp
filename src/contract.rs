@@ -5,10 +5,14 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{CurrentAskForTokenResponse, ExecuteMsg, MintMsg, QueryMsg};
+use crate::msg::{
+    BidForTokenBidderResponse, CurrentAskForTokenResponse, ExecuteMsg, MintMsg, QueryMsg,
+};
 use crate::state::{Ask, Bid, TOKEN_ASKS, TOKEN_BIDDERS};
-use cw721_base::contract::{execute_mint as cw721_execute_mint, instantiate as cw721_instantiate};
-use cw721_base::msg::InstantiateMsg;
+use cw721_base::contract::{
+    execute_mint as cw721_execute_mint, instantiate as cw721_instantiate, query as cw721_query,
+};
+use cw721_base::msg::{InstantiateMsg, QueryMsg as Cw721QueryMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -85,7 +89,7 @@ pub fn execute_set_bid(
     // check ask
     let ask = TOKEN_ASKS.load(deps.storage, &token_id)?;
     if bid.amount.amount > ask.amount.amount {
-        // transfer NFT
+        // finalize transfer NFT
         todo!();
     }
 
@@ -95,13 +99,22 @@ pub fn execute_set_bid(
 }
 
 pub fn execute_accept_bid(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _token_id: String,
-    _bidder: String,
+    token_id: String,
+    bidder: String,
 ) -> Result<Response, ContractError> {
-    Ok(Response::default())
+    let bidder_addr = deps.api.addr_validate(&bidder)?;
+    let bid = TOKEN_BIDDERS.load(deps.storage, (&token_id, &bidder_addr))?;
+    if bid.amount.amount.is_zero() {
+        return Err(ContractError::InvalidBidAmount {});
+    }
+
+    // finalize NFT transfer
+    todo!();
+
+    //     Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -110,6 +123,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::CurrentAskForToken { token_id } => {
             to_binary(&query_current_ask_for_token(deps, token_id)?)
         }
+        QueryMsg::BidForTokenBidder { token_id, bidder } => {
+            to_binary(&query_bid_for_token_bidder(deps, token_id, bidder)?)
+        }
     }
 }
 
@@ -117,8 +133,18 @@ fn query_current_ask_for_token(
     deps: Deps,
     token_id: String,
 ) -> StdResult<CurrentAskForTokenResponse> {
-    let ask = TOKEN_ASKS.load(deps.storage, &token_id).unwrap();
+    let ask = TOKEN_ASKS.load(deps.storage, &token_id)?;
     Ok(CurrentAskForTokenResponse { ask })
+}
+
+fn query_bid_for_token_bidder(
+    deps: Deps,
+    token_id: String,
+    bidder: String,
+) -> StdResult<BidForTokenBidderResponse> {
+    let bidder_addr = deps.api.addr_validate(&bidder)?;
+    let bid = TOKEN_BIDDERS.load(deps.storage, (&token_id, &bidder_addr))?;
+    Ok(BidForTokenBidderResponse { bid })
 }
 
 #[cfg(test)]
@@ -131,6 +157,8 @@ mod tests {
 
     const TOKEN_ID: &str = "123";
     const MINTER: &str = "minter_address";
+    const ALICE: &str = "alice_address";
+    const BOB: &str = "bob_address";
 
     fn setup_contract(deps: DepsMut) {
         let msg = InstantiateMsg {
@@ -200,13 +228,56 @@ mod tests {
         let bid_msg = ExecuteMsg::SetBid {
             token_id: TOKEN_ID.into(),
             amount: coin(3, "token"),
-            bidder: "bidder".into(),
+            bidder: BOB.into(),
         };
-        let info = mock_info("creator", &[]);
-        let _ = execute(deps.as_mut(), mock_env(), info, bid_msg).unwrap();
+        let bob_info = mock_info(BOB.into(), &[]);
+        let _ = execute(deps.as_mut(), mock_env(), bob_info, bid_msg).unwrap();
 
         // ensure bob's bid was created
+        let res = query_bid_for_token_bidder(deps.as_ref(), TOKEN_ID.into(), BOB.into()).unwrap();
+        assert_eq!(Uint128::from(3u128), res.bid.amount.amount);
+    }
 
-        // assert_eq!(res, Response::new().add_attribute("action", "set_bid"));
+    #[test]
+    fn accept_bid() {
+        let mut deps = mock_dependencies(&[]);
+        setup_contract(deps.as_mut());
+
+        let mint_msg = ExecuteMsg::Mint(MintMsg {
+            ask_amount: coin(5, "token"),
+            base: Cw721MintMsg {
+                token_id: TOKEN_ID.into(),
+                owner: "owner".into(),
+                name: "Cosmic Ape 123".into(),
+                description: Some("The first Cosmisc Ape".into()),
+                image: None,
+            },
+        });
+
+        let minter_info = mock_info(MINTER, &[]);
+        let _ = execute(deps.as_mut(), mock_env(), minter_info, mint_msg).unwrap();
+
+        // bob bids 3
+        let bid_msg = ExecuteMsg::SetBid {
+            token_id: TOKEN_ID.into(),
+            amount: coin(3, "token"),
+            bidder: BOB.into(),
+        };
+        let bob_info = mock_info(BOB.into(), &[]);
+        let _ = execute(deps.as_mut(), mock_env(), bob_info, bid_msg).unwrap();
+
+        // alice accepts bob's bid
+        let accept_bid_msg = ExecuteMsg::AcceptBid {
+            token_id: TOKEN_ID.into(),
+            bidder: BOB.into(),
+        };
+        let alice_info = mock_info(ALICE.into(), &[]);
+        let _ = execute(deps.as_mut(), mock_env(), alice_info, accept_bid_msg).unwrap();
+
+        // TODO: check if bob is the new owner of the NFT
+        let owner_of_query = Cw721QueryMsg::OwnerOf {
+            token_id: TOKEN_ID.into(),
+            include_expired: Some(true),
+        };
     }
 }
