@@ -17,9 +17,13 @@ token -> ask
 ## Messages
 
 ```
-- mint()
-- set_ask()
+- mint() # includes ask
 - set_bid()
 - accept_bid()
 ```
 
+## User stories
+
+1. Alice mints NFT with an ask of 5 tokens and becomes the owner.
+2. Bob bids 3 tokens.
+3. Alice accepts Bob's bid.
