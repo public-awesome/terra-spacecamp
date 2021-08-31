@@ -5,14 +5,13 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
+use crate::helpers::Cw721Contract;
 use crate::msg::{
     BidForTokenBidderResponse, CurrentAskForTokenResponse, ExecuteMsg, MintMsg, QueryMsg,
 };
 use crate::state::{Ask, Bid, TOKEN_ASKS, TOKEN_BIDDERS};
-use cw721_base::contract::{
-    execute_mint as cw721_execute_mint, instantiate as cw721_instantiate, query as cw721_query,
-};
-use cw721_base::msg::{InstantiateMsg, QueryMsg as Cw721QueryMsg};
+use cw721_base::contract::{execute_mint as cw721_execute_mint, instantiate as cw721_instantiate};
+use cw721_base::msg::InstantiateMsg;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -151,7 +150,7 @@ fn query_bid_for_token_bidder(
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, Uint128};
+    use cosmwasm_std::{coin, QuerierWrapper, Uint128};
     use cw721_base::msg::MintMsg as Cw721MintMsg;
     use cw721_base::state::num_tokens;
 
@@ -275,11 +274,15 @@ mod tests {
         let _ = execute(deps.as_mut(), mock_env(), alice_info, accept_bid_msg).unwrap();
 
         // TODO: check if bob is the new owner of the NFT
-        let owner_of_query = Cw721QueryMsg::OwnerOf {
-            token_id: TOKEN_ID.into(),
-            include_expired: Some(true),
-        };
-        let res = cw721_query(deps.as_ref(), mock_env(), owner_of_query).unwrap();
+        // let owner_of_query = Cw721QueryMsg::OwnerOf {
+        //     token_id: TOKEN_ID.into(),
+        //     include_expired: Some(true),
+        // };
+        // let res = cw721_query(deps.as_ref(), mock_env(), owner_of_query).unwrap();
         // assert_eq!(BOB.into(), res.owner);
+        let query_wrapper = QuerierWrapper::new(&deps.querier);
+        let cw721 = Cw721Contract(mock_env().contract.address);
+        let res = cw721.owner_of(&query_wrapper, TOKEN_ID, true).unwrap();
+        assert_eq!(BOB, res.owner);
     }
 }
