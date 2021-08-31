@@ -1,12 +1,16 @@
-# Simple NFT Market
+# Terra Spacecamp: NFTs with CosmWasm
 
-## User stories
+## A Simple NFT Market
+
+Slides: ![slides](./slides.pdf)
+
+### User stories
 
 1. Alice mints NFT with an ask of 5 tokens and becomes the owner.
 2. Bob bids 3 tokens.
 3. Alice accepts Bob's bid.
 
-## State
+### State
 
 owner
 
@@ -20,7 +24,7 @@ ask
 (token, bidder) -> bid
 token -> ask
 
-## Messages
+### Messages
 
 ```
 - mint() # includes ask
