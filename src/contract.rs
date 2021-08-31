@@ -9,7 +9,10 @@ use crate::msg::{
     BidForTokenBidderResponse, CurrentAskForTokenResponse, ExecuteMsg, MintMsg, QueryMsg,
 };
 use crate::state::{Ask, Bid, TOKEN_ASKS, TOKEN_BIDDERS};
-use cw721_base::contract::{execute_mint as cw721_execute_mint, instantiate as cw721_instantiate};
+use cw721_base::contract::{
+    _transfer_nft as cw721_transfer_nft, execute_mint as cw721_execute_mint,
+    instantiate as cw721_instantiate,
+};
 use cw721_base::msg::InstantiateMsg;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -61,7 +64,7 @@ pub fn execute_mint(
 pub fn execute_set_bid(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     token_id: String,
     amount: Coin,
     bidder: String,
@@ -73,7 +76,7 @@ pub fn execute_set_bid(
 
     // send funds from bidder to contract
     let msg = BankMsg::Send {
-        to_address: env.contract.address.into(),
+        to_address: env.contract.address.to_string(),
         amount: vec![amount.clone()],
     };
 
@@ -87,8 +90,8 @@ pub fn execute_set_bid(
     // check ask
     let ask = TOKEN_ASKS.load(deps.storage, &token_id)?;
     if bid.amount.amount > ask.amount.amount {
-        // finalize transfer NFT
-        todo!();
+        // transfer NFT
+        transfer_nft(deps, env, info, bidder, token_id)?;
     }
 
     Ok(Response::new()
@@ -98,8 +101,8 @@ pub fn execute_set_bid(
 
 pub fn execute_accept_bid(
     deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
+    env: Env,
+    info: MessageInfo,
     token_id: String,
     bidder: String,
 ) -> Result<Response, ContractError> {
@@ -109,10 +112,26 @@ pub fn execute_accept_bid(
         return Err(ContractError::InvalidBidAmount {});
     }
 
-    // finalize NFT transfer
-    todo!();
+    // transfer NFT
+    transfer_nft(deps, env, info, bidder, token_id)?;
 
-    //     Ok(Response::default())
+    Ok(Response::new().add_attribute("action", "accept_bid"))
+}
+
+fn transfer_nft(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    recipient: String,
+    token_id: String,
+) -> Result<(), ContractError> {
+    // transfer NFT
+    cw721_transfer_nft(deps.branch(), &env, &info, &recipient, &token_id)?;
+
+    // remove the accepted bid
+    let recipient_addr = deps.api.addr_validate(&recipient)?;
+    TOKEN_BIDDERS.remove(deps.storage, (&token_id, &recipient_addr));
+    Ok(())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -149,7 +168,7 @@ fn query_bid_for_token_bidder(
 mod tests {
     use super::*;
     use crate::helpers::Cw721Contract;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
     use cosmwasm_std::{coin, QuerierWrapper, Uint128};
     use cw721_base::msg::MintMsg as Cw721MintMsg;
     use cw721_base::state::num_tokens;
@@ -246,7 +265,7 @@ mod tests {
             ask_amount: coin(5, "token"),
             base: Cw721MintMsg {
                 token_id: TOKEN_ID.into(),
-                owner: "owner".into(),
+                owner: ALICE.into(),
                 name: "Cosmic Ape 123".into(),
                 description: Some("The first Cosmisc Ape".into()),
                 image: None,
