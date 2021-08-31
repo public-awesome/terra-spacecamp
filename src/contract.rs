@@ -144,6 +144,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::BidForTokenBidder { token_id, bidder } => {
             to_binary(&query_bid_for_token_bidder(deps, token_id, bidder)?)
         }
+        QueryMsg::OwnerOf { token_id } => to_binary(&query_owner_of(deps, token_id)?),
     }
 }
 

@@ -31,6 +31,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     CurrentAskForToken { token_id: String },
     BidForTokenBidder { token_id: String, bidder: String },
+    OwnerOf { token_id: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
