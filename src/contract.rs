@@ -174,7 +174,7 @@ fn query_owner_of(deps: Deps, token_id: String) -> StdResult<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coin, Uint128};
     use cw721_base::msg::MintMsg as Cw721MintMsg;
     use cw721_base::state::num_tokens;
@@ -190,7 +190,7 @@ mod tests {
             symbol: "APE".into(),
             minter: MINTER.into(),
         };
-        let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
+        let info = mock_info(MINTER, &[]);
         let res = instantiate(deps, mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
     }
