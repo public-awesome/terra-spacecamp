@@ -107,6 +107,7 @@ pub fn execute_accept_bid(
     token_id: String,
     bidder: String,
 ) -> Result<Response, ContractError> {
+    // TODO: make sure alice is the owner
     let bidder_addr = deps.api.addr_validate(&bidder)?;
     let bid = TOKEN_BIDDERS.load(deps.storage, (&token_id, &bidder_addr))?;
     if bid.amount.amount.is_zero() {
@@ -210,7 +211,7 @@ mod tests {
             ask_amount: coin(5, "token"),
             base: Cw721MintMsg {
                 token_id: TOKEN_ID.into(),
-                owner: "owner".into(),
+                owner: ALICE.into(),
                 name: "Cosmic Ape 123".into(),
                 description: Some("The first Cosmisc Ape".into()),
                 image: None,
