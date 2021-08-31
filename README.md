@@ -22,6 +22,7 @@ ask
 - amount
 
 (token, bidder) -> bid
+
 token -> ask
 
 ### Messages
