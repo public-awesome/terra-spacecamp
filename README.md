@@ -2,7 +2,7 @@
 
 ## A Simple NFT Market
 
-Slides: ![slides](./slides.pdf)
+Slides: [slides](./slides.pdf)
 
 ### User stories
 
