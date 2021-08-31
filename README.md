@@ -1,4 +1,4 @@
-# Simple NFT Auction
+# Simple NFT Market
 
 ## State
 
@@ -18,11 +18,8 @@ token -> ask
 
 ```
 - mint()
-- auction_transfer()
 - set_ask()
-- remove_ask()
 - set_bid()
-- remove_bid()
 - accept_bid()
 ```
 

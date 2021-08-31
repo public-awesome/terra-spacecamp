@@ -290,7 +290,7 @@ mod tests {
         let bob_info = mock_info(BOB.into(), &[]);
         let _ = execute(deps.as_mut(), mock_env(), bob_info, bid_msg).unwrap();
 
-        // check if bob is the new owner of the NFT
+        // check if alice is the current owner of the NFT
         let owner = query_owner_of(deps.as_ref(), TOKEN_ID.into()).unwrap();
         assert_eq!(ALICE, owner);
 
