@@ -3,6 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
+use cw721_base::state::tokens;
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -164,12 +165,16 @@ fn query_bid_for_token_bidder(
     Ok(BidForTokenBidderResponse { bid })
 }
 
+fn query_owner_of(deps: Deps, token_id: String) -> StdResult<String> {
+    let info = tokens().load(deps.storage, &token_id)?;
+    Ok(info.owner.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::helpers::Cw721Contract;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
-    use cosmwasm_std::{coin, QuerierWrapper, Uint128};
+    use cosmwasm_std::{coin, Uint128};
     use cw721_base::msg::MintMsg as Cw721MintMsg;
     use cw721_base::state::num_tokens;
 
@@ -184,7 +189,7 @@ mod tests {
             symbol: "APE".into(),
             minter: MINTER.into(),
         };
-        let info = mock_info("creator", &[]);
+        let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
         let res = instantiate(deps, mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
     }
@@ -284,6 +289,10 @@ mod tests {
         let bob_info = mock_info(BOB.into(), &[]);
         let _ = execute(deps.as_mut(), mock_env(), bob_info, bid_msg).unwrap();
 
+        // check if bob is the new owner of the NFT
+        let owner = query_owner_of(deps.as_ref(), TOKEN_ID.into()).unwrap();
+        assert_eq!(ALICE, owner);
+
         // alice accepts bob's bid
         let accept_bid_msg = ExecuteMsg::AcceptBid {
             token_id: TOKEN_ID.into(),
@@ -293,9 +302,7 @@ mod tests {
         let _ = execute(deps.as_mut(), mock_env(), alice_info, accept_bid_msg).unwrap();
 
         // check if bob is the new owner of the NFT
-        let query_wrapper = QuerierWrapper::new(&deps.querier);
-        let cw721 = Cw721Contract(mock_env().contract.address);
-        let res = cw721.owner_of(&query_wrapper, TOKEN_ID, true).unwrap();
-        assert_eq!(BOB, res.owner);
+        let owner = query_owner_of(deps.as_ref(), TOKEN_ID.into()).unwrap();
+        assert_eq!(BOB, owner);
     }
 }
