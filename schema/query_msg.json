@@ -5,11 +5,63 @@
     {
       "type": "object",
       "required": [
-        "get_count"
+        "current_ask_for_token"
       ],
       "properties": {
-        "get_count": {
-          "type": "object"
+        "current_ask_for_token": {
+          "type": "object",
+          "required": [
+            "token_id"
+          ],
+          "properties": {
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "bid_for_token_bidder"
+      ],
+      "properties": {
+        "bid_for_token_bidder": {
+          "type": "object",
+          "required": [
+            "bidder",
+            "token_id"
+          ],
+          "properties": {
+            "bidder": {
+              "type": "string"
+            },
+            "token_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "owner_of"
+      ],
+      "properties": {
+        "owner_of": {
+          "type": "object",
+          "required": [
+            "token_id"
+          ],
+          "properties": {
+            "token_id": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false

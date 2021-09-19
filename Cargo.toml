@@ -1,5 +1,5 @@
 [package]
-name = "media"
+name = "media_gh"
 version = "0.1.0"
 authors = ["Shane Vitarana <shanev@gmail.com>"]
 edition = "2018"
