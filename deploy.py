@@ -29,7 +29,6 @@ def store_contract(contract_name):
         msgs=[store_code], fee=StdFee(5000000, "1000000uluna")
     )
     result = terra.tx.broadcast(tx)
-    #print(result)
     code_id = get_code_id(result)
     return code_id
 
@@ -58,17 +57,14 @@ def execute_contract(sender, contract_addr: str, execute_msg):
         msgs=[msg], fee=StdFee(5000000, "1000000uluna")
     )
     result = terra.tx.broadcast(tx)
-    print(result)
     return result
-    # exec_addr = get_contract_address(result)
-    # return exec_addr
 
-code_id_ts = store_contract("media_gh")
+code_id_ts = store_contract("media")
 print("code id:", code_id_ts)
 
 inited_contract = instantiate_contract(code_id_ts, {
-    "name": "Gopal Coin GH",
-    "symbol": "GC",
+    "name": "New Coin",
+    "symbol": "NC",
     "minter": deployer.key.acc_address,
 })
 
@@ -101,12 +97,13 @@ print("current ask of NFT:", terra.wasm.contract_query(inited_contract, {"curren
 new_bid = execute_contract(deployer, inited_contract, {
     "set_bid":
         {
+            # 5 is <10, so the NFT won't transfer -- try >10 for NFT transfer
             "amount": {"amount": "5", "denom": "uluna"},
             "bidder": acc2.key.acc_address,
             "token_id": "uniqueid1"
         }
 })
-print("bid result:", new_bid)
+print("bid hash:", new_bid.txhash)
 print("deployer:", deployer.key.acc_address)
 print("deployer balance:", terra.bank.balance(deployer.key.acc_address))
 print("acc2:", acc2.key.acc_address)
